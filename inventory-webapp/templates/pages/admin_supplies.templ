@@ -1,0 +1,247 @@
+package pages
+
+import (
+	"fmt"
+	"inventory-webapp/internal/models"
+	"inventory-webapp/templates"
+)
+
+type CreateSupplyDefFormData struct {
+	Name                   string
+	Type                   string
+	StudyID                string
+	HasExpirationDate      bool
+	HasSerialNumber        bool
+	ExpirationAlertEnabled bool
+}
+
+templ AdminSuppliesPage(currentUser *models.User, defs []models.SupplyDefinition, studies []models.Study, formErr string) {
+	@templates.Base("Insumos", currentUser) {
+		<div class="page-header">
+			<h1>Gestión de Insumos</h1>
+		</div>
+		@CreateSupplyDefForm(formErr, CreateSupplyDefFormData{Type: models.SupplyTypeSingleUse}, studies)
+		<div id="supplies-action-error" aria-live="polite"></div>
+		<div id="supplies-table-container" class="table-container mt-2">
+			<table>
+				<caption class="sr-only">Lista de insumos</caption>
+				<thead>
+					<tr>
+						<th>Nombre</th>
+						<th>Tipo</th>
+						<th>Estudio</th>
+						<th>N° Serie</th>
+						<th>Vencimiento</th>
+						<th>Estado</th>
+						<th>Creado</th>
+						<th>Acciones</th>
+					</tr>
+				</thead>
+				<tbody id="supplies-table-body">
+					if len(defs) == 0 {
+						<tr><td colspan="8" class="text-center text-muted">No hay insumos registrados</td></tr>
+					}
+					for _, d := range defs {
+						@SupplyDefDisplayRow(&d)
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
+
+templ CreateSupplyDefFormInner(errMsg string, prefill CreateSupplyDefFormData, studies []models.Study) {
+	<h2>Agregar Insumo</h2>
+	@templates.ErrorMessage(errMsg)
+	<form
+		hx-post="/admin/supplies"
+		hx-target="#create-supply-section"
+		hx-swap="outerHTML"
+	>
+		<div class="form-row">
+			<div class="form-group">
+				<label for="new-supply-name">Nombre *</label>
+				<input type="text" id="new-supply-name" name="name" value={ prefill.Name } required maxlength="255"/>
+			</div>
+			<div class="form-group">
+				<label for="new-supply-type">Tipo *</label>
+				<select id="new-supply-type" name="type" required>
+					<option value={ models.SupplyTypeSingleUse } selected?={ prefill.Type == models.SupplyTypeSingleUse }>Uso Único</option>
+					<option value={ models.SupplyTypeReturnable } selected?={ prefill.Type == models.SupplyTypeReturnable }>Retornable</option>
+					<option value={ models.SupplyTypeDisposable } selected?={ prefill.Type == models.SupplyTypeDisposable }>Descartable</option>
+				</select>
+			</div>
+			<div class="form-group">
+				<label for="new-supply-study">Estudio *</label>
+				<select id="new-supply-study" name="study_id" required>
+					<option value="">Seleccionar...</option>
+					for _, s := range studies {
+						if s.Active {
+							<option value={ s.ID } selected?={ prefill.StudyID == s.ID }>{ s.Name }</option>
+						}
+					}
+				</select>
+			</div>
+		</div>
+		<div class="form-row">
+			<div class="form-group">
+				<label class="checkbox-label">
+					<input type="checkbox" name="has_serial_number" checked?={ prefill.HasSerialNumber }/>
+					Número de Serie
+				</label>
+			</div>
+			<div class="form-group">
+				<label class="checkbox-label">
+					<input type="checkbox" name="has_expiration_date" checked?={ prefill.HasExpirationDate }/>
+					Fecha de Vencimiento
+				</label>
+			</div>
+			<div class="form-group">
+				<label class="checkbox-label">
+					<input type="checkbox" name="expiration_alert_enabled" checked?={ prefill.ExpirationAlertEnabled }/>
+					Alerta de Vencimiento
+				</label>
+			</div>
+			<div class="form-group form-group-action">
+				<button type="submit" class="btn btn-primary">Agregar</button>
+			</div>
+		</div>
+	</form>
+}
+
+templ CreateSupplyDefForm(errMsg string, prefill CreateSupplyDefFormData, studies []models.Study) {
+	<div id="create-supply-section" class="panel mb-2">
+		@CreateSupplyDefFormInner(errMsg, prefill, studies)
+	</div>
+}
+
+templ SupplyDefDisplayRow(d *models.SupplyDefinition) {
+	<tr id={ fmt.Sprintf("supply-row-%s", d.ID) } class={ templ.KV("row-inactive", !d.Active) }>
+		<td>{ d.Name }</td>
+		<td><span class="badge badge-status">{ models.SupplyTypeLabel(d.Type) }</span></td>
+		<td>{ d.StudyName }</td>
+		<td class="text-center">
+			if d.HasSerialNumber {
+				<span>✓</span>
+			} else {
+				<span class="text-muted">--</span>
+			}
+		</td>
+		<td class="text-center">
+			if d.HasExpirationDate {
+				<span>✓</span>
+			} else {
+				<span class="text-muted">--</span>
+			}
+		</td>
+		<td>
+			@templates.ActiveBadge(d.Active)
+		</td>
+		<td class="text-sm text-muted">@templates.FormattedDate(d.CreatedAt)</td>
+		<td class="actions">
+			if d.Active {
+				<button
+					class="btn btn-secondary btn-sm"
+					hx-get={ fmt.Sprintf("/admin/supplies/%s/edit", d.ID) }
+					hx-target={ fmt.Sprintf("#supply-row-%s", d.ID) }
+					hx-swap="outerHTML"
+					aria-label={ fmt.Sprintf("Editar %s", d.Name) }
+				>Editar</button>
+				<button
+					class="btn btn-danger btn-sm"
+					hx-delete={ fmt.Sprintf("/admin/supplies/%s", d.ID) }
+					hx-target={ fmt.Sprintf("#supply-row-%s", d.ID) }
+					hx-swap="outerHTML"
+					hx-confirm="¿Desactivar este insumo?"
+					aria-label={ fmt.Sprintf("Desactivar %s", d.Name) }
+				>Desactivar</button>
+			} else {
+				<button
+					class="btn btn-primary btn-sm"
+					hx-put={ fmt.Sprintf("/admin/supplies/%s/activate", d.ID) }
+					hx-target={ fmt.Sprintf("#supply-row-%s", d.ID) }
+					hx-swap="outerHTML"
+					hx-confirm="¿Activar este insumo?"
+					aria-label={ fmt.Sprintf("Activar %s", d.Name) }
+				>Activar</button>
+			}
+		</td>
+	</tr>
+}
+
+templ SupplyDefEditRow(d *models.SupplyDefinition, studies []models.Study, errMsg string) {
+	if errMsg != "" {
+		<tr id={ fmt.Sprintf("supply-row-%s-error", d.ID) }>
+			<td colspan="8">
+				@templates.ErrorMessage(errMsg)
+			</td>
+		</tr>
+	}
+	<tr id={ fmt.Sprintf("supply-row-%s", d.ID) } class={ templ.KV("row-inactive", !d.Active) }>
+		<td>
+			<form
+				id={ fmt.Sprintf("edit-supply-form-%s", d.ID) }
+				hx-put={ fmt.Sprintf("/admin/supplies/%s", d.ID) }
+				hx-target={ fmt.Sprintf("#supply-row-%s", d.ID) }
+				hx-swap="outerHTML"
+			>
+				<input type="text" name="name" value={ d.Name } required maxlength="255" aria-label="Nombre"/>
+			</form>
+		</td>
+		<td>
+			<select name="type" required aria-label="Tipo" form={ fmt.Sprintf("edit-supply-form-%s", d.ID) }>
+				<option value={ models.SupplyTypeSingleUse } selected?={ d.Type == models.SupplyTypeSingleUse }>Uso Único</option>
+				<option value={ models.SupplyTypeReturnable } selected?={ d.Type == models.SupplyTypeReturnable }>Retornable</option>
+				<option value={ models.SupplyTypeDisposable } selected?={ d.Type == models.SupplyTypeDisposable }>Descartable</option>
+			</select>
+		</td>
+		<td>
+			<select name="study_id" required aria-label="Estudio" form={ fmt.Sprintf("edit-supply-form-%s", d.ID) }>
+				for _, s := range studies {
+					if s.Active || s.ID == d.StudyID {
+						<option value={ s.ID } selected?={ s.ID == d.StudyID }>{ s.Name }</option>
+					}
+				}
+			</select>
+		</td>
+		<td class="text-center">
+			<label class="checkbox-label">
+				<input type="checkbox" name="has_serial_number" checked?={ d.HasSerialNumber } form={ fmt.Sprintf("edit-supply-form-%s", d.ID) } aria-label="N° Serie"/>
+			</label>
+		</td>
+		<td class="text-center">
+			<label class="checkbox-label">
+				<input type="checkbox" name="has_expiration_date" checked?={ d.HasExpirationDate } form={ fmt.Sprintf("edit-supply-form-%s", d.ID) } aria-label="Vencimiento"/>
+			</label>
+		</td>
+		<td>@templates.ActiveBadge(d.Active)</td>
+		<td class="text-sm text-muted">@templates.FormattedDate(d.CreatedAt)</td>
+		<td class="actions">
+			<button
+				type="submit"
+				form={ fmt.Sprintf("edit-supply-form-%s", d.ID) }
+				class="btn btn-primary btn-sm"
+				aria-label={ fmt.Sprintf("Guardar %s", d.Name) }
+			>Guardar</button>
+			<button
+				class="btn btn-secondary btn-sm"
+				hx-get={ fmt.Sprintf("/admin/supplies/%s/display", d.ID) }
+				hx-target={ fmt.Sprintf("#supply-row-%s", d.ID) }
+				hx-swap="outerHTML"
+				aria-label={ fmt.Sprintf("Cancelar edición de %s", d.Name) }
+			>Cancelar</button>
+		</td>
+	</tr>
+}
+
+templ SupplyDefDisplayRowWithClear(d *models.SupplyDefinition) {
+	@SupplyDefDisplayRow(d)
+	@templates.ClearActionError("supplies")
+}
+
+templ SupplyDefRowOOB(d *models.SupplyDefinition) {
+	@CreateSupplyDefForm("", CreateSupplyDefFormData{Type: models.SupplyTypeSingleUse}, nil)
+	<div hx-swap-oob="afterbegin:#supplies-table-body">
+		@SupplyDefDisplayRow(d)
+	</div>
+}

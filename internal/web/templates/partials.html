@@ -1,0 +1,73 @@
+{{define "results"}}
+<div class="hero">
+  <div class="kpi">
+    <div class="kpi-num">{{.Hero.Visits}}</div>
+    <div class="kpi-lbl">Visitas realizadas</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-num">{{.Hero.VisitTypes}}</div>
+    <div class="kpi-lbl">Tipos de visita</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-num">{{.Hero.Studies}}</div>
+    <div class="kpi-lbl">Estudios</div>
+  </div>
+</div>
+
+<div class="chart-card">
+  <div class="chart-head">
+    <h2>Visitas realizadas por estudio y visita</h2>
+    {{if gt .Total .Limit}}
+      {{if .ShowAll}}
+      <button type="button" class="badge badge-toggle" aria-expanded="true"
+              hx-get="/visitas/resultados" hx-include="#filtros"
+              hx-vals='{"view":"top"}' hx-target="#resultados">
+        Ver top {{.Limit}} ▲
+      </button>
+      {{else}}
+      <button type="button" class="badge badge-toggle" aria-expanded="false"
+              hx-get="/visitas/resultados" hx-include="#filtros"
+              hx-vals='{"view":"all"}' hx-target="#resultados">
+        Ver todos ({{.Total}}) ▼
+      </button>
+      {{end}}
+    {{end}}
+  </div>
+  {{.Chart}}
+</div>
+{{end}}
+
+{{define "trend"}}<div id="tendencia" class="chart-card trend-card"{{if .OOB}} hx-swap-oob="true"{{end}}>
+  <div class="chart-head">
+    <h2>Tendencia de visitas realizadas</h2>
+    <div class="seg" role="group" aria-label="Rango de la tendencia">
+      {{range .Views}}
+      <button type="button" class="seg-btn trend-btn{{if eq .Key $.View}} on{{end}}"
+              data-trend="{{.Key}}" aria-pressed="{{if eq .Key $.View}}true{{else}}false{{end}}"
+              hx-get="/visitas/tendencia" hx-include="#filtros"
+              hx-vals='{"trend":"{{.Key}}"}' hx-target="#tendencia" hx-swap="outerHTML">{{.Label}}</button>
+      {{end}}
+    </div>
+  </div>
+  {{.Chart}}
+</div>{{end}}
+
+{{define "filter_select"}}<div id="{{.ID}}" class="acc-body opts"{{if .OOB}} hx-swap-oob="true"{{end}}>
+<input type="text" class="opts-search" placeholder="Buscar…" autocomplete="off" aria-label="Buscar en {{.Label}}">
+<div class="opts-list">
+{{range .Options}}<label class="opt"><input type="checkbox" name="{{$.Name}}" value="{{.}}"{{if contains $.Selected .}} checked{{end}}><span>{{.}}</span></label>
+{{end}}</div>
+</div>{{end}}
+
+{{define "import_result"}}
+<div class="import-result ok">
+  <h3>Importación completada</h3>
+  <ul>
+    <li>Archivos: {{range .Files}}<code>{{.}}</code> {{end}}</li>
+    <li>Filas leídas: <b>{{.RowsTotal}}</b></li>
+    <li>Procedimientos nuevos insertados: <b>{{.RowsInserted}}</b></li>
+    <li>Omitidos (planificadas + duplicados): <b>{{.RowsSkipped}}</b></li>
+  </ul>
+  <a href="/visitas">Ir al dashboard →</a>
+</div>
+{{end}}

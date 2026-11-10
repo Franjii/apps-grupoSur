@@ -1,0 +1,61 @@
+package templates
+
+import (
+	"strconv"
+	"inventory-webapp/internal/models"
+)
+
+templ PaginationNav(pag models.Pagination, baseURL string, target string) {
+	if pag.TotalPages() > 1 {
+		<nav class="pagination" aria-label="Paginación">
+			<button
+				class="pagination-btn"
+				if pag.HasPrev() {
+					hx-get={ baseURL + "&page=" + strconv.Itoa(pag.Page-1) }
+					hx-target={ target }
+					hx-swap="innerHTML"
+				}
+				disabled?={ !pag.HasPrev() }
+				aria-label="Página anterior"
+			>
+				&laquo; Anterior
+			</button>
+			<span class="pagination-pages">
+				for _, p := range pag.PageRange() {
+					if p == 0 {
+						<span class="pagination-ellipsis">&hellip;</span>
+					} else if p == pag.Page {
+						<button class="pagination-btn pagination-btn-active" aria-current="page" aria-label={ "Página " + strconv.Itoa(p) }>
+							{ strconv.Itoa(p) }
+						</button>
+					} else {
+						<button
+							class="pagination-btn"
+							hx-get={ baseURL + "&page=" + strconv.Itoa(p) }
+							hx-target={ target }
+							hx-swap="innerHTML"
+							aria-label={ "Página " + strconv.Itoa(p) }
+						>
+							{ strconv.Itoa(p) }
+						</button>
+					}
+				}
+			</span>
+			<span class="pagination-info">
+				Página { strconv.Itoa(pag.Page) } de { strconv.Itoa(pag.TotalPages()) }
+			</span>
+			<button
+				class="pagination-btn"
+				if pag.HasNext() {
+					hx-get={ baseURL + "&page=" + strconv.Itoa(pag.Page+1) }
+					hx-target={ target }
+					hx-swap="innerHTML"
+				}
+				disabled?={ !pag.HasNext() }
+				aria-label="Página siguiente"
+			>
+				Siguiente &raquo;
+			</button>
+		</nav>
+	}
+}

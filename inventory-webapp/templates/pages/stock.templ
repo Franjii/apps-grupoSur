@@ -1,0 +1,539 @@
+package pages
+
+import (
+	"strconv"
+	"inventory-webapp/internal/models"
+	"inventory-webapp/templates"
+)
+
+type StockFormPrefill struct {
+	SupplyDefinitionID string
+	StudyID            string
+	Operation          string
+	Quantity           string
+	Notes              string
+	SerialNumbers      []string
+	ExpirationDate     string
+}
+
+func boolStr(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
+}
+
+type StockPageData struct {
+	User              *models.User
+	Studies           []models.Study
+	SupplyDefinitions []models.SupplyDefinition
+	CurrentStock      []models.CurrentStockItem
+	Operations        []models.StockOperationListItem
+	Alerts            []models.StockAlert
+	Filter            string
+	Pagination        models.Pagination
+	FormErr           string
+	Prefill           StockFormPrefill
+}
+
+script stockSupplyChanged() {
+	var sel = document.getElementById('stock-supply');
+	var opt = sel.options[sel.selectedIndex];
+	var typeGroup = document.getElementById('stock-type-group');
+	var serialGroup = document.getElementById('stock-serial-group');
+	var expirationGroup = document.getElementById('stock-expiration-group');
+	var typeDisplay = document.getElementById('stock-type-display');
+	var expirationInput = document.getElementById('stock-expiration');
+	var serialContainer = document.getElementById('stock-serial-container');
+
+	if (!opt || !opt.value) {
+		typeGroup.style.display = 'none';
+		serialGroup.style.display = 'none';
+		expirationGroup.style.display = 'none';
+		typeDisplay.value = '';
+		serialContainer.innerHTML = '';
+		expirationInput.value = '';
+		return;
+	}
+
+	var supplyType = opt.getAttribute('data-supply-type') || '';
+	var hasSerial = opt.getAttribute('data-has-serial') === 'true';
+	var hasExpiration = opt.getAttribute('data-has-expiration') === 'true';
+
+	var typeLabels = {'single_use': 'Uso Unico', 'returnable': 'Retornable', 'disposable': 'Descartable'};
+	typeDisplay.value = typeLabels[supplyType] || supplyType;
+	typeGroup.style.display = '';
+
+	if (hasSerial) {
+		serialGroup.style.display = '';
+		var qty = parseInt(document.getElementById('stock-quantity').value) || 0;
+		var container = document.getElementById('stock-serial-container');
+		var existing = container.querySelectorAll('input[name="serial_numbers"]');
+		var values = [];
+		for (var i = 0; i < existing.length; i++) { values.push(existing[i].value); }
+		container.innerHTML = '';
+		for (var j = 0; j < qty; j++) {
+			var inp = document.createElement('input');
+			inp.type = 'text'; inp.name = 'serial_numbers';
+			inp.placeholder = 'Serie #' + (j + 1); inp.maxLength = 255;
+			if (j < values.length) { inp.value = values[j]; }
+			if (j > 0) { inp.style.marginTop = '0.5rem'; }
+			container.appendChild(inp);
+		}
+	} else {
+		serialGroup.style.display = 'none';
+		serialContainer.innerHTML = '';
+	}
+
+	if (hasExpiration) {
+		expirationGroup.style.display = '';
+	} else {
+		expirationGroup.style.display = 'none';
+		expirationInput.value = '';
+	}
+}
+
+script stockStudyChanged() {
+	var studySel = document.getElementById('stock-study');
+	var supplySel = document.getElementById('stock-supply');
+	var selectedStudy = studySel.value;
+
+	// Reset supply selection
+	supplySel.selectedIndex = 0;
+
+	// Show/hide options based on study
+	var options = supplySel.querySelectorAll('option[data-study-id]');
+	for (var i = 0; i < options.length; i++) {
+		var opt = options[i];
+		if (!selectedStudy || opt.getAttribute('data-study-id') === selectedStudy) {
+			opt.style.display = '';
+			opt.disabled = false;
+		} else {
+			opt.style.display = 'none';
+			opt.disabled = true;
+		}
+	}
+
+	// Trigger supply change to reset conditional fields
+	supplySel.dispatchEvent(new Event('change'));
+}
+
+script stockSearchFilter() {
+	const input = document.getElementById('stock-search');
+	const term = input.value.toLowerCase();
+	const container = document.getElementById('stock-table-container');
+	const rows = container.querySelectorAll('table tbody tr');
+	rows.forEach(function(row) {
+		const cells = row.querySelectorAll('td');
+		let match = false;
+		cells.forEach(function(cell) {
+			if (cell.textContent.toLowerCase().includes(term)) {
+				match = true;
+			}
+		});
+		row.style.display = match ? '' : 'none';
+	});
+	// Uncheck hidden rows and update bulk bar
+	const checks = container.querySelectorAll('.stock-row-check');
+	checks.forEach(function(cb) {
+		if (cb.closest('tr').style.display === 'none') cb.checked = false;
+	});
+	if (window.updateBulkBar) window.updateBulkBar();
+}
+
+templ StockPage(data StockPageData) {
+	@templates.Base("Stock", data.User) {
+		<div class="page-header">
+			<h1>Gestión de Stock</h1>
+		</div>
+		<div class="panel mb-2">
+			<h2>Registrar Operación</h2>
+			@templates.ErrorMessage(data.FormErr)
+			<form method="POST" action="/stock/operations">
+				@templates.CSRFInput()
+				<input type="hidden" name="operation" value={ models.OperationDelivery }/>
+				<div class="form-row">
+					<div class="form-group">
+						<label for="stock-study">Estudio *</label>
+						<select id="stock-study" name="study_id" required onchange={ stockStudyChanged() }>
+							<option value="">Seleccionar...</option>
+							for _, s := range data.Studies {
+								<option value={ s.ID } selected?={ data.Prefill.StudyID == s.ID }>{ s.Name }</option>
+							}
+						</select>
+					</div>
+					<div class="form-group">
+						<label for="stock-supply">Insumo *</label>
+						<select id="stock-supply" name="supply_definition_id" required onchange={ stockSupplyChanged() }>
+							<option value="">Seleccionar...</option>
+							for _, sd := range data.SupplyDefinitions {
+								<option
+									value={ sd.ID }
+									selected?={ data.Prefill.SupplyDefinitionID == sd.ID }
+									data-study-id={ sd.StudyID }
+									data-has-serial={ boolStr(sd.HasSerialNumber) }
+									data-has-expiration={ boolStr(sd.HasExpirationDate) }
+									data-supply-type={ sd.Type }
+								>
+									{ sd.Name }
+								</option>
+							}
+						</select>
+					</div>
+				</div>
+				<div class="form-row" id="stock-conditional-fields">
+					<div class="form-group" id="stock-type-group" style="display:none">
+						<label for="stock-type-display">Tipo de Insumo</label>
+						<input type="text" id="stock-type-display" readonly class="text-muted"/>
+					</div>
+					<div class="form-group" id="stock-expiration-group" style="display:none">
+						<label for="stock-expiration">Fecha de Vencimiento</label>
+						<input type="date" id="stock-expiration" name="expiration_date" value={ data.Prefill.ExpirationDate }/>
+					</div>
+				</div>
+				<div class="form-row">
+					<div class="form-group">
+						<label for="stock-quantity">Cantidad *</label>
+						<input type="number" id="stock-quantity" name="quantity" value={ data.Prefill.Quantity } min="1" required oninput={ stockSupplyChanged() }/>
+					</div>
+				</div>
+				<div class="form-group" id="stock-serial-group" style="display:none">
+					<label>Números de Serie</label>
+					<div id="stock-serial-container">
+						if len(data.Prefill.SerialNumbers) > 0 {
+							for i, sn := range data.Prefill.SerialNumbers {
+								if i > 0 {
+									<input type="text" name="serial_numbers" value={ sn } placeholder={ "Serie #" + strconv.Itoa(i+1) } maxlength="255" style="margin-top: 0.5rem"/>
+								} else {
+									<input type="text" name="serial_numbers" value={ sn } placeholder={ "Serie #" + strconv.Itoa(i+1) } maxlength="255"/>
+								}
+							}
+						}
+					</div>
+				</div>
+				<div class="form-row">
+					<div class="form-group">
+						<label for="stock-notes">Notas</label>
+						<input type="text" id="stock-notes" name="notes" value={ data.Prefill.Notes } maxlength="255"/>
+					</div>
+					<div class="form-group form-group-action">
+						<button type="submit" class="btn btn-primary">Registrar</button>
+					</div>
+				</div>
+			</form>
+			if data.Prefill.SupplyDefinitionID != "" {
+				<script>
+					document.addEventListener('DOMContentLoaded', function() {
+						var studySel = document.getElementById('stock-study');
+						var supplySel = document.getElementById('stock-supply');
+						// Apply study filter without resetting supply selection
+						if (studySel && studySel.value) {
+							var options = supplySel.querySelectorAll('option[data-study-id]');
+							for (var i = 0; i < options.length; i++) {
+								var opt = options[i];
+								if (opt.getAttribute('data-study-id') === studySel.value) {
+									opt.style.display = '';
+									opt.disabled = false;
+								} else {
+									opt.style.display = 'none';
+									opt.disabled = true;
+								}
+							}
+						}
+						// Trigger supply change to show conditional fields
+						if (supplySel) { supplySel.dispatchEvent(new Event('change')); }
+					});
+				</script>
+			}
+		</div>
+		<div class="form-group">
+			<input
+				type="text"
+				id="stock-search"
+				placeholder="Buscar en stock..."
+				aria-label="Buscar en stock actual"
+				oninput={ stockSearchFilter() }
+			/>
+		</div>
+		<div class="filter-tabs">
+			<button
+				class={ "filter-tab", templ.KV("active", data.Filter == "stock") }
+				hx-get="/stock?filter=stock"
+				hx-target="#stock-table-container"
+				hx-swap="innerHTML"
+			>Stock Actual</button>
+			<button
+				class={ "filter-tab", templ.KV("active", data.Filter == "operations") }
+				hx-get="/stock?filter=operations"
+				hx-target="#stock-table-container"
+				hx-swap="innerHTML"
+			>Operaciones</button>
+			<button
+				class={ "filter-tab", templ.KV("active", data.Filter == "alerts") }
+				hx-get="/stock?filter=alerts"
+				hx-target="#stock-table-container"
+				hx-swap="innerHTML"
+			>
+				Alertas
+				if len(data.Alerts) > 0 {
+					<span class="tab-badge">{ strconv.Itoa(len(data.Alerts)) }</span>
+				}
+			</button>
+		</div>
+		<div id="stock-table-container" aria-live="polite">
+			@StockTabContent(data)
+		</div>
+	}
+}
+
+templ StockTabContent(data StockPageData) {
+	switch data.Filter {
+		case "operations":
+			@StockOperationsTable(data.Operations)
+			@templates.PaginationNav(data.Pagination, "/stock?filter=operations", "#stock-table-container")
+		case "alerts":
+			@StockAlertsSection(data.Alerts)
+		default:
+			@CurrentStockTable(data.CurrentStock)
+			@templates.PaginationNav(data.Pagination, "/stock?filter=stock", "#stock-table-container")
+	}
+}
+
+templ CurrentStockTable(items []models.CurrentStockItem) {
+	<div id="stock-bulk-actions" style="display:none" class="mb-1 mt-2">
+		<form method="POST" action="/stock/bulk-operation" onsubmit="return prepareBulkSubmit(this)">
+			@templates.CSRFInput()
+			<input type="hidden" name="operation" id="bulk-operation-type"/>
+			<input type="hidden" name="items" id="bulk-items-json"/>
+			<button type="submit" class="btn btn-secondary btn-sm" id="bulk-return-btn"
+				style="display:none" onclick="document.getElementById('bulk-operation-type').value='return'">
+				Devolver seleccionados (<span id="bulk-return-count">0</span>)
+			</button>
+			<button type="submit" class="btn btn-secondary btn-sm" id="bulk-use-btn"
+				style="display:none" onclick="document.getElementById('bulk-operation-type').value='use'">
+				Usar seleccionados (<span id="bulk-use-count">0</span>)
+			</button>
+		</form>
+	</div>
+	<div class="table-container mt-2">
+		<table>
+			<caption class="sr-only">Stock actual</caption>
+			<thead>
+				<tr>
+					<th><input type="checkbox" id="stock-select-all" aria-label="Seleccionar todos"/></th>
+					<th>Insumo</th>
+					<th>Tipo</th>
+					<th>Estudio</th>
+					<th>Nº de Serie</th>
+					<th>Vencimiento</th>
+					<th>Cantidad</th>
+					<th>Fecha de Recepción</th>
+				</tr>
+			</thead>
+			<tbody>
+				if len(items) == 0 {
+					<tr><td colspan="8" class="text-center text-muted">No hay stock registrado</td></tr>
+				}
+				for _, item := range items {
+					<tr>
+						<td>
+							<input type="checkbox" class="stock-row-check"
+								data-supply-instance-id={ item.SupplyInstanceID }
+								data-study-id={ item.StudyID }
+								data-quantity={ strconv.Itoa(item.Quantity) }
+								data-supply-type={ item.SupplyType }
+								aria-label={ "Seleccionar " + item.SupplyName }/>
+						</td>
+						<td>{ item.SupplyName }</td>
+						<td><span class="badge badge-status">{ models.SupplyTypeLabel(item.SupplyType) }</span></td>
+						<td>{ item.StudyName }</td>
+						<td>
+							if item.SerialNumbers != "" {
+								{ item.SerialNumbers }
+							} else {
+								<span class="text-muted">--</span>
+							}
+						</td>
+						<td>
+							if item.ExpirationDate != nil {
+								{ *item.ExpirationDate }
+							} else {
+								<span class="text-muted">--</span>
+							}
+						</td>
+						<td>{ strconv.Itoa(item.Quantity) }</td>
+						<td class="text-sm text-muted">@templates.FormattedDate(item.ReceivedDate)</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+	if len(items) > 0 {
+		<script>
+			(function() {
+				var selectAll = document.getElementById('stock-select-all');
+				if (!selectAll) return;
+
+				selectAll.addEventListener('change', function() {
+					document.querySelectorAll('.stock-row-check').forEach(function(cb) {
+						if (cb.closest('tr').style.display !== 'none') {
+							cb.checked = selectAll.checked;
+						}
+					});
+					updateBulkBar();
+				});
+
+				document.querySelectorAll('.stock-row-check').forEach(function(cb) {
+					cb.addEventListener('change', updateBulkBar);
+				});
+
+				function updateBulkBar() {
+					var checked = document.querySelectorAll('.stock-row-check:checked');
+					var returnCount = 0, useCount = 0;
+					checked.forEach(function(cb) {
+						var type = cb.getAttribute('data-supply-type');
+						if (type === 'returnable' || type === 'single_use') returnCount++;
+						else if (type === 'disposable') useCount++;
+					});
+
+					var bar = document.getElementById('stock-bulk-actions');
+					var retBtn = document.getElementById('bulk-return-btn');
+					var useBtn = document.getElementById('bulk-use-btn');
+
+					bar.style.display = (returnCount + useCount > 0) ? '' : 'none';
+					retBtn.style.display = returnCount > 0 ? '' : 'none';
+					useBtn.style.display = useCount > 0 ? '' : 'none';
+
+					document.getElementById('bulk-return-count').textContent = returnCount;
+					document.getElementById('bulk-use-count').textContent = useCount;
+
+					var visible = [];
+					document.querySelectorAll('.stock-row-check').forEach(function(cb) {
+						if (cb.closest('tr').style.display !== 'none') visible.push(cb);
+					});
+					var visibleChecked = visible.filter(function(cb) { return cb.checked; });
+					selectAll.checked = visible.length > 0 && visibleChecked.length === visible.length;
+				}
+
+				window.updateBulkBar = updateBulkBar;
+
+				window.prepareBulkSubmit = function(form) {
+					var operation = document.getElementById('bulk-operation-type').value;
+					if (!operation) return false;
+
+					var checked = document.querySelectorAll('.stock-row-check:checked');
+					var items = [];
+					var typeFilter = operation === 'return' ? ['returnable', 'single_use'] : ['disposable'];
+					checked.forEach(function(cb) {
+						var type = cb.getAttribute('data-supply-type');
+						if (typeFilter.indexOf(type) >= 0) {
+							items.push({
+								supply_instance_id: cb.getAttribute('data-supply-instance-id'),
+								study_id: cb.getAttribute('data-study-id'),
+								quantity: parseInt(cb.getAttribute('data-quantity'))
+							});
+						}
+					});
+
+					if (items.length === 0) return false;
+
+					var opLabel = operation === 'return' ? 'devolver' : 'usar';
+					if (!confirm('¿Confirmar ' + opLabel + ' ' + items.length + ' ítem(s) seleccionado(s)?')) return false;
+
+					document.getElementById('bulk-items-json').value = JSON.stringify(items);
+					return true;
+				};
+			})();
+		</script>
+	}
+}
+
+templ StockOperationsTable(items []models.StockOperationListItem) {
+	<div class="table-container mt-2">
+		<table>
+			<caption class="sr-only">Operaciones de stock</caption>
+			<thead>
+				<tr>
+					<th>Fecha</th>
+					<th>Operación</th>
+					<th>Insumo</th>
+					<th>Estudio</th>
+					<th>Cantidad</th>
+					<th>Notas</th>
+					<th>Realizado por</th>
+				</tr>
+			</thead>
+			<tbody>
+				if len(items) == 0 {
+					<tr><td colspan="7" class="text-center text-muted">No hay operaciones registradas</td></tr>
+				}
+				for _, item := range items {
+					<tr>
+						<td class="text-sm">@templates.FormattedDate(item.OperationDate)</td>
+						<td>
+							switch item.Operation {
+								case models.OperationDelivery:
+									<span class="badge badge-open">Entrega</span>
+								case models.OperationReturn:
+									<span class="badge badge-closed">Retorno</span>
+								case models.OperationUse:
+									<span class="badge badge-status">Uso</span>
+							}
+						</td>
+						<td>{ item.SupplyName }</td>
+						<td>{ item.StudyName }</td>
+						<td>{ strconv.Itoa(item.Quantity) }</td>
+						<td>
+							if item.Notes != nil {
+								{ *item.Notes }
+							} else {
+								<span class="text-muted">--</span>
+							}
+						</td>
+						<td>
+							if item.PerformedByName != nil {
+								{ *item.PerformedByName }
+							} else {
+								<span class="text-muted">--</span>
+							}
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+templ StockAlertsSection(alerts []models.StockAlert) {
+	<div class="mt-2">
+		if len(alerts) == 0 {
+			<div class="panel">
+				<p class="text-center text-muted">No hay alertas activas</p>
+			</div>
+		}
+		for _, alert := range alerts {
+			<div class={ "panel mb-1", templ.KV("alert-card-warning", alert.AlertType == "expiration" && alert.Severity == "warning"), templ.KV("alert-card-urgent", alert.AlertType == "expiration" && alert.Severity == "urgent"), templ.KV("alert-card-expired", alert.AlertType == "expiration" && alert.Severity == "expired") }>
+				<div style="display: flex; justify-content: space-between; align-items: center;">
+					<div>
+						<strong>{ alert.SupplyName }</strong>
+						if alert.StudyName != "" {
+							<span class="text-muted"> - { alert.StudyName }</span>
+						}
+					</div>
+					<div>
+						if alert.AlertType == "reorder" {
+							<span class="badge badge-status-pending">Reorden</span>
+						} else if alert.Severity == "expired" {
+							<span class="badge badge-alert-expired">Vencido</span>
+						} else if alert.Severity == "urgent" {
+							<span class="badge badge-alert-urgent">Vence pronto</span>
+						} else {
+							<span class="badge badge-alert-warning">Próximo a vencer</span>
+						}
+					</div>
+				</div>
+				<p class="text-sm text-muted mt-1">{ alert.Detail }</p>
+			</div>
+		}
+	</div>
+}

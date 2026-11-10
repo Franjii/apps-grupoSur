@@ -1,0 +1,29 @@
+package pages
+
+import (
+	"inventory-webapp/internal/models"
+	"inventory-webapp/templates"
+)
+
+templ DashboardPage(user *models.User) {
+	@templates.Base("Inicio", user) {
+		<div class="dashboard">
+			<h1>Bienvenido, { user.FullName }</h1>
+			<p class="dashboard-subtitle">Panel de control de Inventario GrupoSur</p>
+			<div class="card-grid">
+				<a href="/stock" class="card card-tickets">
+					<h3>Gestión de Stock</h3>
+					<p>Registrar entregas y devoluciones de insumos por estudio</p>
+				</a>
+				<a href="/delivery" class="card card-new-ticket">
+					<h3>Entrega y Devolución</h3>
+					<p>Gestionar entrega y devolución de items retornables a participantes</p>
+				</a>
+				<a href="/admin/supplies" class="card card-admin">
+					<h3>Configuración</h3>
+					<p>Gestionar estudios e insumos</p>
+				</a>
+			</div>
+		</div>
+	}
+}

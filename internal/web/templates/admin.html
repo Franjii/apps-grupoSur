@@ -1,0 +1,55 @@
+{{define "content"}}
+<div class="narrow">
+  <h1>Usuarios</h1>
+
+  <form class="add-user" method="post" action="/admin/usuarios/crear">
+    <h2>Agregar usuario</h2>
+    <div class="row">
+      <input type="email" name="email" placeholder="email@gruposur.ar" required>
+      <input type="text" name="name" placeholder="Nombre (opcional)">
+    </div>
+    <div class="row mods">
+      <label><input type="checkbox" name="is_admin" value="1"> Administrador</label>
+      {{range .Modules}}
+      <label><input type="checkbox" name="module" value="{{.Key}}"> {{.Name}}</label>
+      {{end}}
+    </div>
+    <button type="submit" class="btn btn-primary">Crear</button>
+  </form>
+
+  <table class="users">
+    <thead>
+      <tr><th>Email</th><th>Nombre</th><th>Admin</th><th>Módulos</th><th>Estado</th><th></th></tr>
+    </thead>
+    <tbody>
+      {{range .Users}}
+      <tr class="{{if not .Active}}inactive{{end}}">
+        <td>{{.Email}}</td>
+        <td>{{.Name}}</td>
+        <td>{{if .IsAdmin}}sí{{end}}</td>
+        <td>
+          <form method="post" action="/admin/usuarios/modulos" class="mod-form">
+            <input type="hidden" name="user_id" value="{{.ID}}">
+            {{$u := .}}
+            {{range $.Modules}}
+            <label><input type="checkbox" name="module" value="{{.Key}}"
+              {{if contains $u.Modules .Key}}checked{{end}}
+              {{if $u.IsAdmin}}disabled{{end}}> {{.Name}}</label>
+            {{end}}
+            {{if not .IsAdmin}}<button type="submit" class="btn btn-primary btn-sm">Guardar</button>{{end}}
+          </form>
+        </td>
+        <td>{{if .Active}}activo{{else}}inhabilitado{{end}}</td>
+        <td>
+          <form method="post" action="/admin/usuarios/estado">
+            <input type="hidden" name="user_id" value="{{.ID}}">
+            <input type="hidden" name="active" value="{{if .Active}}0{{else}}1{{end}}">
+            <button type="submit" class="link">{{if .Active}}Inhabilitar{{else}}Activar{{end}}</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}

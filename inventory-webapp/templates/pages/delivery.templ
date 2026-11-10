@@ -1,0 +1,396 @@
+package pages
+
+import (
+	"inventory-webapp/internal/models"
+	"inventory-webapp/templates"
+)
+
+type DeliveryPageData struct {
+	User       *models.User
+	Items      []models.ReturnableItemListItem
+	Log        []models.DeliveryLogListItem
+	Filter     string
+	Pagination models.Pagination
+}
+
+script deliverySearchFilter() {
+	const input = document.getElementById('delivery-search');
+	const term = input.value.toLowerCase();
+	const container = document.getElementById('delivery-table-container');
+	const rows = container.querySelectorAll('table tbody tr');
+	rows.forEach(function(row) {
+		const cells = row.querySelectorAll('td');
+		let match = false;
+		cells.forEach(function(cell) {
+			if (cell.textContent.toLowerCase().includes(term)) {
+				match = true;
+			}
+		});
+		row.style.display = match ? '' : 'none';
+	});
+	// Uncheck hidden rows
+	const checks = container.querySelectorAll('.delivery-row-check');
+	checks.forEach(function(cb) {
+		if (cb.closest('tr').style.display === 'none') cb.checked = false;
+	});
+	if (window.updateDeliverySelectAll) window.updateDeliverySelectAll();
+	if (window.updateDeliveryBulkBar) window.updateDeliveryBulkBar();
+}
+
+templ DeliveryPage(data DeliveryPageData) {
+	@templates.Base("Entrega/Devolución", data.User) {
+		<div class="page-header">
+			<h1>Entrega y Devolución</h1>
+		</div>
+		<div class="form-group">
+			<input
+				type="text"
+				id="delivery-search"
+				placeholder="Buscar en items..."
+				aria-label="Buscar en items retornables"
+				oninput={ deliverySearchFilter() }
+			/>
+		</div>
+		<div class="filter-tabs">
+			<button
+				class={ "filter-tab", templ.KV("active", data.Filter == "all") }
+				hx-get="/delivery?filter=all"
+				hx-target="#delivery-table-container"
+				hx-swap="innerHTML"
+			>Todos</button>
+			<button
+				class={ "filter-tab", templ.KV("active", data.Filter == "not_delivered") }
+				hx-get="/delivery?filter=not_delivered"
+				hx-target="#delivery-table-container"
+				hx-swap="innerHTML"
+			>No Entregados</button>
+			<button
+				class={ "filter-tab", templ.KV("active", data.Filter == "delivered") }
+				hx-get="/delivery?filter=delivered"
+				hx-target="#delivery-table-container"
+				hx-swap="innerHTML"
+			>Entregados</button>
+			<button
+				class={ "filter-tab", templ.KV("active", data.Filter == "returned") }
+				hx-get="/delivery?filter=returned"
+				hx-target="#delivery-table-container"
+				hx-swap="innerHTML"
+			>Devueltos</button>
+			<button
+				class={ "filter-tab", templ.KV("active", data.Filter == "frozen") }
+				hx-get="/delivery?filter=frozen"
+				hx-target="#delivery-table-container"
+				hx-swap="innerHTML"
+			>Congelados</button>
+			<button
+				class={ "filter-tab", templ.KV("active", data.Filter == "log") }
+				hx-get="/delivery?filter=log"
+				hx-target="#delivery-table-container"
+				hx-swap="innerHTML"
+			>Historial</button>
+		</div>
+		<div id="delivery-table-container" aria-live="polite">
+			@DeliveryTabContent(data)
+		</div>
+	}
+}
+
+templ DeliveryTabContent(data DeliveryPageData) {
+	if data.Filter == "log" {
+		@DeliveryLogTable(data.Log)
+		@templates.PaginationNav(data.Pagination, "/delivery?filter=log", "#delivery-table-container")
+	} else {
+		@ReturnableItemsTable(data.Items)
+		@templates.PaginationNav(data.Pagination, "/delivery?filter=" + data.Filter, "#delivery-table-container")
+	}
+}
+
+templ ReturnableItemsTable(items []models.ReturnableItemListItem) {
+	<div id="delivery-bulk-actions" style="display:none" class="mb-1 mt-2">
+		<form method="POST" action="/delivery/bulk-operation" onsubmit="return prepareDeliveryBulkSubmit(this)">
+			@templates.CSRFInput()
+			<input type="hidden" name="operation" value=""/>
+			<input type="hidden" name="items" value=""/>
+			<button type="submit" class="btn btn-secondary btn-sm" onclick="this.form.operation.value='freeze'" id="delivery-freeze-btn" style="display:none">
+				Congelar seleccionados (<span id="delivery-freeze-count">0</span>)
+			</button>
+			<button type="submit" class="btn btn-secondary btn-sm" onclick="this.form.operation.value='unfreeze'" id="delivery-unfreeze-btn" style="display:none">
+				Descongelar seleccionados (<span id="delivery-unfreeze-count">0</span>)
+			</button>
+		</form>
+	</div>
+	<div class="table-container mt-2">
+		<table>
+			<caption class="sr-only">Items retornables</caption>
+			<thead>
+				<tr>
+					<th><input type="checkbox" id="delivery-select-all" aria-label="Seleccionar todos"/></th>
+					<th>Insumo</th>
+					<th>N° Serie</th>
+					<th>Estudio</th>
+					<th>Estado</th>
+					<th>Participante</th>
+					<th>Última Actualización</th>
+				</tr>
+			</thead>
+			<tbody>
+				if len(items) == 0 {
+					<tr><td colspan="7" class="text-center text-muted">No hay items registrados</td></tr>
+				}
+				for _, item := range items {
+					<tr
+						class="clickable-row"
+						hx-get={ "/delivery/items/" + item.ID }
+						hx-target="#modal-container"
+						hx-swap="innerHTML"
+						aria-label={ item.SupplyName + " " + item.SerialNumber }
+					>
+						<td onclick="event.stopPropagation()">
+							<input type="checkbox" class="delivery-row-check"
+								data-item-id={ item.ID }
+								data-status={ item.Status }
+								aria-label={ "Seleccionar " + item.SupplyName + " " + item.SerialNumber }/>
+						</td>
+						<td>{ item.SupplyName }</td>
+						<td>{ item.SerialNumber }</td>
+						<td>{ item.StudyName }</td>
+						<td>
+							@itemStatusBadge(item.Status)
+						</td>
+						<td>
+							if item.CurrentParticipantID != nil {
+								{ *item.CurrentParticipantID }
+							} else {
+								<span class="text-muted">--</span>
+							}
+						</td>
+						<td class="text-sm text-muted">@templates.FormattedDate(item.UpdatedAt)</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+	if len(items) > 0 {
+		<script>
+			(function() {
+				var selectAll = document.getElementById('delivery-select-all');
+				if (!selectAll) return;
+
+				selectAll.addEventListener('change', function() {
+					document.querySelectorAll('.delivery-row-check').forEach(function(cb) {
+						if (cb.closest('tr').style.display !== 'none') {
+							cb.checked = selectAll.checked;
+						}
+					});
+					updateDeliveryBulkBar();
+				});
+
+				document.querySelectorAll('.delivery-row-check').forEach(function(cb) {
+					cb.addEventListener('change', function() {
+						updateDeliverySelectAll();
+						updateDeliveryBulkBar();
+					});
+				});
+
+				function updateDeliverySelectAll() {
+					var visible = [];
+					document.querySelectorAll('.delivery-row-check').forEach(function(cb) {
+						if (cb.closest('tr').style.display !== 'none') visible.push(cb);
+					});
+					var visibleChecked = visible.filter(function(cb) { return cb.checked; });
+					selectAll.checked = visible.length > 0 && visibleChecked.length === visible.length;
+				}
+				window.updateDeliverySelectAll = updateDeliverySelectAll;
+
+				function updateDeliveryBulkBar() {
+					var freezeCount = 0;
+					var unfreezeCount = 0;
+					document.querySelectorAll('.delivery-row-check:checked').forEach(function(cb) {
+						if (cb.closest('tr').style.display === 'none') return;
+						if (cb.getAttribute('data-status') === 'frozen') {
+							unfreezeCount++;
+						} else {
+							freezeCount++;
+						}
+					});
+
+					var bar = document.getElementById('delivery-bulk-actions');
+					var freezeBtn = document.getElementById('delivery-freeze-btn');
+					var unfreezeBtn = document.getElementById('delivery-unfreeze-btn');
+
+					if (freezeCount === 0 && unfreezeCount === 0) {
+						bar.style.display = 'none';
+						return;
+					}
+					bar.style.display = '';
+
+					if (freezeCount > 0) {
+						freezeBtn.style.display = '';
+						document.getElementById('delivery-freeze-count').textContent = freezeCount;
+					} else {
+						freezeBtn.style.display = 'none';
+					}
+
+					if (unfreezeCount > 0) {
+						unfreezeBtn.style.display = '';
+						document.getElementById('delivery-unfreeze-count').textContent = unfreezeCount;
+					} else {
+						unfreezeBtn.style.display = 'none';
+					}
+				}
+				window.updateDeliveryBulkBar = updateDeliveryBulkBar;
+
+				window.prepareDeliveryBulkSubmit = function(form) {
+					var operation = form.operation.value;
+					var items = [];
+					document.querySelectorAll('.delivery-row-check:checked').forEach(function(cb) {
+						if (cb.closest('tr').style.display === 'none') return;
+						var status = cb.getAttribute('data-status');
+						if (operation === 'freeze' && status !== 'frozen') {
+							items.push({ item_id: cb.getAttribute('data-item-id'), status: status });
+						} else if (operation === 'unfreeze' && status === 'frozen') {
+							items.push({ item_id: cb.getAttribute('data-item-id'), status: status });
+						}
+					});
+
+					if (items.length === 0) return false;
+
+					var label = operation === 'freeze' ? 'congelar' : 'descongelar';
+					if (!confirm('¿Está seguro que desea ' + label + ' ' + items.length + ' item(s)?')) return false;
+
+					form.items.value = JSON.stringify(items);
+					return true;
+				};
+			})();
+		</script>
+	}
+}
+
+templ itemStatusBadge(status string) {
+	switch status {
+		case models.ItemStatusNotDelivered:
+			<span class="badge badge-status-pending">No Entregado</span>
+		case models.ItemStatusDelivered:
+			<span class="badge badge-open">Entregado</span>
+		case models.ItemStatusReturned:
+			<span class="badge badge-closed">Devuelto</span>
+		case models.ItemStatusFrozen:
+			<span class="badge badge-status">Congelado</span>
+	}
+}
+
+templ DeliveryItemModal(item models.ReturnableItemListItem, errMsg string) {
+	<div class="modal-overlay">
+		<div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="delivery-modal-title">
+			<div class="modal-header">
+				<h2 id="delivery-modal-title">{ item.SupplyName } - { item.SerialNumber }</h2>
+				<button class="modal-close" aria-label="Cerrar">&times;</button>
+			</div>
+			<div class="modal-body">
+				<dl class="ticket-info">
+					<dt>Insumo</dt>
+					<dd>{ item.SupplyName }</dd>
+					<dt>N° Serie</dt>
+					<dd>{ item.SerialNumber }</dd>
+					<dt>Estudio</dt>
+					<dd>{ item.StudyName }</dd>
+					<dt>Estado</dt>
+					<dd>@itemStatusBadge(item.Status)</dd>
+					<dt>Participante</dt>
+					<dd>
+						if item.CurrentParticipantID != nil {
+							{ *item.CurrentParticipantID }
+						} else {
+							<span class="text-muted">--</span>
+						}
+					</dd>
+					<dt>Última Actualización</dt>
+					<dd>@templates.FormattedDate(item.UpdatedAt)</dd>
+				</dl>
+				if errMsg != "" {
+					@templates.ErrorMessage(errMsg)
+				}
+				if item.Status == models.ItemStatusNotDelivered || item.Status == models.ItemStatusReturned {
+					<form
+						hx-post={ "/delivery/items/" + item.ID + "/deliver" }
+						hx-target="#modal-container"
+						hx-swap="innerHTML"
+						class="mt-2"
+					>
+						@templates.CSRFInput()
+						<div class="form-group">
+							<label for="participant_id">ID Participante *</label>
+							<input type="text" id="participant_id" name="participant_id" required maxlength="255" placeholder="Ingrese ID del participante"/>
+						</div>
+						<button type="submit" class="btn btn-primary">Entregar</button>
+					</form>
+				}
+				if item.Status == models.ItemStatusDelivered {
+					<form
+						hx-post={ "/delivery/items/" + item.ID + "/return" }
+						hx-target="#modal-container"
+						hx-swap="innerHTML"
+						class="mt-2"
+					>
+						@templates.CSRFInput()
+						<button type="submit" class="btn btn-secondary">Devolver</button>
+					</form>
+				}
+				if item.Status == models.ItemStatusFrozen {
+					<p class="text-muted mt-2">Este item está congelado. No hay acciones disponibles.</p>
+				}
+			</div>
+		</div>
+	</div>
+}
+
+templ DeliveryLogTable(entries []models.DeliveryLogListItem) {
+	<div class="table-container mt-2">
+		<table>
+			<caption class="sr-only">Historial de entregas y devoluciones</caption>
+			<thead>
+				<tr>
+					<th>Fecha</th>
+					<th>Operación</th>
+					<th>Insumo</th>
+					<th>N° Serie</th>
+					<th>Participante</th>
+					<th>Realizado por</th>
+				</tr>
+			</thead>
+			<tbody>
+				if len(entries) == 0 {
+					<tr><td colspan="6" class="text-center text-muted">No hay registros</td></tr>
+				}
+				for _, entry := range entries {
+					<tr>
+						<td class="text-sm">@templates.FormattedDate(entry.OperationDate)</td>
+						<td>
+							if entry.Operation == models.OperationDelivery {
+								<span class="badge badge-open">Entrega</span>
+							} else if entry.Operation == models.OperationReturn {
+								<span class="badge badge-closed">Devolución</span>
+							} else if entry.Operation == models.OperationFreeze {
+								<span class="badge badge-status">Congelado</span>
+							} else if entry.Operation == models.OperationUnfreeze {
+								<span class="badge badge-status-pending">Descongelado</span>
+							} else {
+								<span class="badge">{ entry.Operation }</span>
+							}
+						</td>
+						<td>{ entry.SupplyName }</td>
+						<td>{ entry.SerialNumber }</td>
+						<td>{ entry.ParticipantID }</td>
+						<td>
+							if entry.PerformedByName != nil {
+								{ *entry.PerformedByName }
+							} else {
+								<span class="text-muted">--</span>
+							}
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}

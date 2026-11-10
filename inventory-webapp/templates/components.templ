@@ -1,0 +1,52 @@
+package templates
+
+import (
+	"time"
+
+	"inventory-webapp/internal/models"
+)
+
+// DateFormat is the standard date format (DD/MM/YYYY) used across the application.
+const DateFormat = "02/01/2006"
+
+// DateTimeFormat is the standard datetime format (DD/MM/YYYY HH:MM) used across the application.
+const DateTimeFormat = "02/01/2006 15:04"
+
+templ ActiveBadge(active bool) {
+	if active {
+		<span class="badge badge-open">Activo</span>
+	} else {
+		<span class="badge badge-closed">Inactivo</span>
+	}
+}
+
+templ FormattedDate(t time.Time) {
+	{ t.Format(DateFormat) }
+}
+
+templ ErrorMessage(errMsg string) {
+	if errMsg != "" {
+		<div class="error-message" role="alert">{ errMsg }</div>
+	}
+}
+
+templ SuccessMessage(msg string) {
+	if msg != "" {
+		<div class="success-message" role="alert">{ msg }</div>
+	}
+}
+
+templ BackToLoginLink() {
+	<div class="text-center mt-2">
+		<a href="/login">Volver al inicio de sesión</a>
+	</div>
+}
+
+templ CSRFInput() {
+	<input type="hidden" name="csrf_token" value={ models.CSRFTokenFromContext(ctx) }/>
+}
+
+// ClearActionError renders an OOB swap that clears the action-error container for the given entity.
+templ ClearActionError(entityName string) {
+	<div id={ entityName + "-action-error" } hx-swap-oob="innerHTML"></div>
+}

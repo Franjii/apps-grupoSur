@@ -1,0 +1,94 @@
+{{define "content"}}
+<nav class="crumbs"><a href="/">Inicio</a> <span>/</span> <a href="/estadisticas">Estadísticas</a> <span>/</span> Visitas
+  <a href="/visitas/importar" class="crumb-action">Importar datos</a>
+</nav>
+<div class="dash">
+  <aside class="filters">
+    <div class="filters-head">
+      <h2>Filtros</h2>
+      <a href="/visitas" class="clear">Limpiar</a>
+    </div>
+    <form id="filtros"
+          hx-get="/visitas/resultados"
+          hx-target="#resultados"
+          hx-trigger="change, search delay:300ms"
+          hx-vals='js:{changed: (event && event.target ? event.target.name : "")}'
+          hx-push-url="false">
+
+      <input type="hidden" name="trend" id="trend-state" value="mensual">
+
+      {{range .Facets}}
+      <details class="acc"{{if .Selected}} open{{end}}>
+        <summary>
+          <span class="acc-title">{{.Label}}</span>
+          <span class="acc-count"{{if not .Selected}} hidden{{end}}>{{len .Selected}}</span>
+        </summary>
+        {{template "filter_select" .}}
+      </details>
+      {{end}}
+
+      <details class="acc"{{if or .Filters.DateFrom .Filters.DateTo}} open{{end}}>
+        <summary><span class="acc-title">Rango de fecha</span></summary>
+        <div class="acc-body dates">
+          <input type="date" name="from" value="{{.Filters.DateFrom}}" min="{{.Options.MinDate}}" max="{{.Options.MaxDate}}">
+          <input type="date" name="to" value="{{.Filters.DateTo}}" min="{{.Options.MinDate}}" max="{{.Options.MaxDate}}">
+        </div>
+      </details>
+    </form>
+    <p class="hint">Los filtros se suman entre sí.</p>
+  </aside>
+
+  <section id="resultados" class="results">
+    {{template "results" .}}
+  </section>
+</div>
+
+{{template "trend" .Trend}}
+
+<script>
+(function () {
+  // Filtrar opciones de una lista según el texto del buscador.
+  function filterOpts(input) {
+    var q = input.value.trim().toLowerCase();
+    var box = input.closest(".opts");
+    if (!box) return;
+    box.querySelectorAll(".opt").forEach(function (opt) {
+      opt.style.display = opt.textContent.toLowerCase().indexOf(q) !== -1 ? "" : "none";
+    });
+  }
+  // Recontar checkboxes marcados y actualizar el badge del acordeón.
+  function updateCount(cb) {
+    var det = cb.closest("details");
+    if (!det) return;
+    var n = det.querySelectorAll(".opts input[type=checkbox]:checked").length;
+    var badge = det.querySelector(".acc-count");
+    if (!badge) return;
+    badge.textContent = n;
+    badge.hidden = n === 0;
+  }
+
+  // Al cambiar la vista temporal, recordarla en el form para que los cambios de
+  // filtro posteriores refresquen la tendencia con la misma vista.
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest(".trend-btn");
+    if (b) {
+      var h = document.getElementById("trend-state");
+      if (h) h.value = b.dataset.trend;
+    }
+  });
+
+  document.addEventListener("input", function (e) {
+    if (e.target.classList.contains("opts-search")) filterOpts(e.target);
+  });
+  document.addEventListener("change", function (e) {
+    if (e.target.matches(".opts input[type=checkbox]")) updateCount(e.target);
+  });
+  // El buscador no debe gatillar el refresco HTMX del form (escucha change/search).
+  ["change", "search"].forEach(function (evt) {
+    document.addEventListener(evt, function (e) {
+      if (e.target.classList.contains("opts-search")) e.stopPropagation();
+    }, true);
+  });
+})();
+</script>
+{{end}}

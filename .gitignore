@@ -1,0 +1,36 @@
+/data/
+**/data/
+*.db
+*.db-shm
+*.db-wal
+*.db.bak
+*.db.backup
+*.sqlite
+*.sqlite3
+.env
+.env.*
+!.env.example
+/tmp/
+*.zip
+*.xlsx
+
+# Compilados y archivos generados localmente
+bin/
+*.exe
+*.test
+*.out
+*.log
+/inventory-webapp/inventory-webapp
+/inventory-webapp/ticket-system
+/inventory-webapp/server
+/inventory-webapp/El
+/inventory-webapp/Sin
+
+# Configuracion local de herramientas y metadatos de Windows
+.claude/
+.codex/
+.agents/
+.aws/
+*:Zone.Identifier
+.DS_Store
+Thumbs.db

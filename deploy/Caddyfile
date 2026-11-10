@@ -1,0 +1,20 @@
+# Caddy: HTTPS automático (Let's Encrypt) para los subdominios de Grupo Sur.
+# login y estadisticas apuntan al mismo binario (monolito modular, :8080); la app
+# distingue login y secciones por ruta. Inventario es una app aparte en :4040.
+
+login.gruposur.ar, estadisticas.gruposur.ar {
+	encode gzip
+	reverse_proxy 127.0.0.1:8080
+}
+
+# Módulo Inventario (inventory-webapp), servicio systemd 'inventario'.
+inventario.gruposur.ar {
+	encode gzip
+	reverse_proxy 127.0.0.1:4040
+}
+
+# Plantilla para el futuro despliegue de Compliance. Confirmar DNS y servicio antes de activar.
+compliance.gruposur.ar {
+	encode gzip
+	reverse_proxy 127.0.0.1:8081
+}

@@ -1,0 +1,22 @@
+{{define "content"}}
+<nav class="crumbs"><a href="/">Inicio</a> <span>/</span> {{.Module.Name}}</nav>
+
+<div class="hub">
+  <h1>{{.Module.Name}}</h1>
+  {{if .Module.Desc}}<p class="lead">{{.Module.Desc}}</p>{{end}}
+
+  {{if .Module.Sections}}
+  <div class="cards">
+    {{range .Module.Sections}}
+    <a class="card" href="{{.Path}}">
+      <h2>{{.Name}}</h2>
+      <p>{{.Desc}}</p>
+      <span class="card-go">Abrir →</span>
+    </a>
+    {{end}}
+  </div>
+  {{else}}
+  <div class="empty-state"><p>Este módulo aún no tiene secciones.</p></div>
+  {{end}}
+</div>
+{{end}}

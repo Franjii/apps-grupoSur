@@ -1,0 +1,28 @@
+# systemd unit para el módulo Inventario (inventory-webapp).
+# Instalar en /etc/systemd/system/inventario.service
+
+[Unit]
+Description=Modulo Inventario Grupo Sur (inventory-webapp)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=inventario
+Group=inventario
+# CRÍTICO: el binario lee ./static y ./inventory.db RELATIVOS al WorkingDirectory.
+WorkingDirectory=/opt/inventario
+ExecStart=/opt/inventario/server
+EnvironmentFile=/opt/inventario/.env
+Restart=on-failure
+RestartSec=3
+# Endurecimiento básico
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+# La base SQLite (+ WAL/SHM) se escribe en el WorkingDirectory.
+ReadWritePaths=/opt/inventario
+
+[Install]
+WantedBy=multi-user.target

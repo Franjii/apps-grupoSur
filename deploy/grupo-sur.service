@@ -1,0 +1,27 @@
+# systemd unit para la plataforma Grupo Sur.
+# Instalar en /etc/systemd/system/grupo-sur.service
+
+[Unit]
+Description=Plataforma Grupo Sur (estadisticas/login)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=grupo-sur
+Group=grupo-sur
+WorkingDirectory=/opt/grupo-sur
+ExecStart=/opt/grupo-sur/server
+EnvironmentFile=/opt/grupo-sur/.env
+Restart=on-failure
+RestartSec=3
+# Endurecimiento básico
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+# La base vive en /opt/grupo-sur/data
+ReadWritePaths=/opt/grupo-sur/data
+
+[Install]
+WantedBy=multi-user.target

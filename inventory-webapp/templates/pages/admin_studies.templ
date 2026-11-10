@@ -1,0 +1,213 @@
+package pages
+
+import (
+	"fmt"
+	"inventory-webapp/internal/models"
+	"inventory-webapp/templates"
+)
+
+// CreateStudyFormData holds prefill values for the create form on validation error.
+type CreateStudyFormData struct {
+	Name      string
+	Platform1 string
+	Platform2 string
+	Platform3 string
+}
+
+templ AdminStudiesPage(currentUser *models.User, studies []models.Study, formErr string) {
+	@templates.Base("Estudios", currentUser) {
+		<div class="page-header">
+			<h1>Gestión de Estudios</h1>
+		</div>
+		@CreateStudyForm(formErr, CreateStudyFormData{})
+		<div id="studies-action-error" aria-live="polite"></div>
+		<div id="studies-table-container" class="table-container mt-2">
+			<table>
+				<caption class="sr-only">Lista de estudios</caption>
+				<thead>
+					<tr>
+						<th>Nombre</th>
+						<th>Plataforma 1</th>
+						<th>Plataforma 2</th>
+						<th>Plataforma 3</th>
+						<th>Estado</th>
+						<th>Creado</th>
+						<th>Acciones</th>
+					</tr>
+				</thead>
+				<tbody id="studies-table-body">
+					if len(studies) == 0 {
+						<tr><td colspan="7" class="text-center text-muted">No hay estudios registrados</td></tr>
+					}
+					for _, s := range studies {
+						@StudyDisplayRow(&s)
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
+
+templ CreateStudyFormInner(errMsg string, prefill CreateStudyFormData) {
+	<h2>Agregar Estudio</h2>
+	@templates.ErrorMessage(errMsg)
+	<form
+		hx-post="/admin/studies"
+		hx-target="#create-study-section"
+		hx-swap="outerHTML"
+	>
+		<div class="form-row">
+			<div class="form-group">
+				<label for="new-study-name">Nombre *</label>
+				<input type="text" id="new-study-name" name="name" value={ prefill.Name } required maxlength="255"/>
+			</div>
+			<div class="form-group">
+				<label for="new-study-p1">Plataforma 1</label>
+				<input type="text" id="new-study-p1" name="platform_1" value={ prefill.Platform1 } maxlength="255"/>
+			</div>
+			<div class="form-group">
+				<label for="new-study-p2">Plataforma 2</label>
+				<input type="text" id="new-study-p2" name="platform_2" value={ prefill.Platform2 } maxlength="255"/>
+			</div>
+			<div class="form-group">
+				<label for="new-study-p3">Plataforma 3</label>
+				<input type="text" id="new-study-p3" name="platform_3" value={ prefill.Platform3 } maxlength="255"/>
+			</div>
+			<div class="form-group form-group-action">
+				<button type="submit" class="btn btn-primary">Agregar</button>
+			</div>
+		</div>
+	</form>
+}
+
+templ CreateStudyForm(errMsg string, prefill CreateStudyFormData) {
+	<div id="create-study-section" class="panel mb-2">
+		@CreateStudyFormInner(errMsg, prefill)
+	</div>
+}
+
+func ptrStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+templ StudyDisplayRow(s *models.Study) {
+	<tr id={ fmt.Sprintf("study-row-%s", s.ID) } class={ templ.KV("row-inactive", !s.Active) }>
+		<td>{ s.Name }</td>
+		<td>
+			if s.Platform1 != nil {
+				{ *s.Platform1 }
+			} else {
+				<span class="text-muted">--</span>
+			}
+		</td>
+		<td>
+			if s.Platform2 != nil {
+				{ *s.Platform2 }
+			} else {
+				<span class="text-muted">--</span>
+			}
+		</td>
+		<td>
+			if s.Platform3 != nil {
+				{ *s.Platform3 }
+			} else {
+				<span class="text-muted">--</span>
+			}
+		</td>
+		<td>
+			@templates.ActiveBadge(s.Active)
+		</td>
+		<td class="text-sm text-muted">@templates.FormattedDate(s.CreatedAt)</td>
+		<td class="actions">
+			if s.Active {
+				<button
+					class="btn btn-secondary btn-sm"
+					hx-get={ fmt.Sprintf("/admin/studies/%s/edit", s.ID) }
+					hx-target={ fmt.Sprintf("#study-row-%s", s.ID) }
+					hx-swap="outerHTML"
+					aria-label={ fmt.Sprintf("Editar %s", s.Name) }
+				>Editar</button>
+				<button
+					class="btn btn-danger btn-sm"
+					hx-delete={ fmt.Sprintf("/admin/studies/%s", s.ID) }
+					hx-target={ fmt.Sprintf("#study-row-%s", s.ID) }
+					hx-swap="outerHTML"
+					hx-confirm="¿Desactivar este estudio?"
+					aria-label={ fmt.Sprintf("Desactivar %s", s.Name) }
+				>Desactivar</button>
+			} else {
+				<button
+					class="btn btn-primary btn-sm"
+					hx-put={ fmt.Sprintf("/admin/studies/%s/activate", s.ID) }
+					hx-target={ fmt.Sprintf("#study-row-%s", s.ID) }
+					hx-swap="outerHTML"
+					hx-confirm="¿Activar este estudio?"
+					aria-label={ fmt.Sprintf("Activar %s", s.Name) }
+				>Activar</button>
+			}
+		</td>
+	</tr>
+}
+
+templ StudyEditRow(s *models.Study, errMsg string) {
+	if errMsg != "" {
+		<tr id={ fmt.Sprintf("study-row-%s-error", s.ID) }>
+			<td colspan="7">
+				@templates.ErrorMessage(errMsg)
+			</td>
+		</tr>
+	}
+	<tr id={ fmt.Sprintf("study-row-%s", s.ID) } class={ templ.KV("row-inactive", !s.Active) }>
+		<td>
+			<form
+				id={ fmt.Sprintf("edit-study-form-%s", s.ID) }
+				hx-put={ fmt.Sprintf("/admin/studies/%s", s.ID) }
+				hx-target={ fmt.Sprintf("#study-row-%s", s.ID) }
+				hx-swap="outerHTML"
+			>
+				<input type="text" name="name" value={ s.Name } required maxlength="255" aria-label="Nombre"/>
+			</form>
+		</td>
+		<td>
+			<input type="text" name="platform_1" value={ ptrStr(s.Platform1) } maxlength="255" aria-label="Plataforma 1" form={ fmt.Sprintf("edit-study-form-%s", s.ID) }/>
+		</td>
+		<td>
+			<input type="text" name="platform_2" value={ ptrStr(s.Platform2) } maxlength="255" aria-label="Plataforma 2" form={ fmt.Sprintf("edit-study-form-%s", s.ID) }/>
+		</td>
+		<td>
+			<input type="text" name="platform_3" value={ ptrStr(s.Platform3) } maxlength="255" aria-label="Plataforma 3" form={ fmt.Sprintf("edit-study-form-%s", s.ID) }/>
+		</td>
+		<td>@templates.ActiveBadge(s.Active)</td>
+		<td class="text-sm text-muted">@templates.FormattedDate(s.CreatedAt)</td>
+		<td class="actions">
+			<button
+				type="submit"
+				form={ fmt.Sprintf("edit-study-form-%s", s.ID) }
+				class="btn btn-primary btn-sm"
+				aria-label={ fmt.Sprintf("Guardar %s", s.Name) }
+			>Guardar</button>
+			<button
+				class="btn btn-secondary btn-sm"
+				hx-get={ fmt.Sprintf("/admin/studies/%s/display", s.ID) }
+				hx-target={ fmt.Sprintf("#study-row-%s", s.ID) }
+				hx-swap="outerHTML"
+				aria-label={ fmt.Sprintf("Cancelar edición de %s", s.Name) }
+			>Cancelar</button>
+		</td>
+	</tr>
+}
+
+templ StudyDisplayRowWithClear(s *models.Study) {
+	@StudyDisplayRow(s)
+	@templates.ClearActionError("studies")
+}
+
+templ StudyRowOOB(s *models.Study) {
+	@CreateStudyForm("", CreateStudyFormData{})
+	<div hx-swap-oob="afterbegin:#studies-table-body">
+		@StudyDisplayRow(s)
+	</div>
+}

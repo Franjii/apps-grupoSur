@@ -1,0 +1,20 @@
+{{define "content"}}
+<nav class="crumbs"><a href="/">Inicio</a> <span>/</span> <a href="/estadisticas">Estadísticas</a> <span>/</span> <a href="/visitas">Visitas</a> <span>/</span> Importar</nav>
+<div class="narrow">
+  <h1>Importar visitas</h1>
+  <p class="lead">Subí el <code>.zip</code> exportado del CTMS (puede contener varios Excel).
+     Solo se cargan visitas <b>realizadas</b>; los duplicados se omiten automáticamente.</p>
+
+  <form hx-post="/visitas/importar"
+        hx-encoding="multipart/form-data"
+        hx-target="#import-out"
+        hx-indicator="#import-spin"
+        class="upload-form">
+    <input type="file" name="archivo" accept=".zip" required>
+    <button type="submit" class="btn btn-primary">Importar</button>
+    <span id="import-spin" class="htmx-indicator">Procesando…</span>
+  </form>
+
+  <div id="import-out"></div>
+</div>
+{{end}}

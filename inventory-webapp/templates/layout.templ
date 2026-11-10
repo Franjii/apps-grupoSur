@@ -1,0 +1,218 @@
+package templates
+
+import "inventory-webapp/internal/models"
+
+// Head renders the shared <head> block for all pages.
+templ Head(title string) {
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+		<meta name="theme-color" content="#1a73b5"/>
+		<meta name="description" content="Inventario GrupoSur - Sistema de gestión de inventario"/>
+		<link rel="manifest" href="/static/manifest.json"/>
+		<link rel="apple-touch-icon" href="/static/images/icons/icon-180x180.png"/>
+		<meta name="apple-mobile-web-app-capable" content="yes"/>
+		<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+		<meta name="apple-mobile-web-app-title" content="Inventario"/>
+		<title>{ title } - Inventario GrupoSur</title>
+		<script>
+			(function(){var s=localStorage.getItem('theme');
+			if(s==='dark')document.documentElement.setAttribute('data-theme','dark');
+			else if(s==='light')document.documentElement.setAttribute('data-theme','light');
+			})();
+		</script>
+		<link rel="stylesheet" href="/static/css/styles.css"/>
+		<script src="/static/js/htmx.min.js"></script>
+		<meta name="csrf-token" content={ models.CSRFTokenFromContext(ctx) }/>
+		<script>
+			// Configure HTMX to send CSRF token on every request
+			document.addEventListener('htmx:configRequest', function(evt) {
+				var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+				if (csrfMeta) {
+					evt.detail.headers['X-CSRF-Token'] = csrfMeta.content;
+				}
+			});
+			document.addEventListener('htmx:beforeSwap', function(evt) {
+				if (evt.detail.xhr.status === 422) {
+					evt.detail.shouldSwap = true;
+					evt.detail.isError = false;
+				}
+				// Clean up error rows before swapping edit/display rows
+				var target = evt.detail.target;
+				if (target && target.id) {
+					var errorRow = document.getElementById(target.id + '-error');
+					if (errorRow) errorRow.remove();
+				}
+			});
+
+			// Track the element that had focus before modal opened
+			var _modalPreviousFocus = null;
+
+			// Close modal helper
+			function _closeModal() {
+				var container = document.getElementById('modal-container');
+				if (container && container.innerHTML.trim() !== '') {
+					container.innerHTML = '';
+					if (_modalPreviousFocus) {
+						_modalPreviousFocus.focus();
+						_modalPreviousFocus = null;
+					}
+				}
+			}
+
+			// Close modals on Escape key
+			document.addEventListener('keydown', function(evt) {
+				if (evt.key === 'Escape') {
+					_closeModal();
+					return;
+				}
+				// Focus trap: Tab/Shift+Tab within modal
+				if (evt.key === 'Tab') {
+					var modal = document.querySelector('#modal-container .modal-content');
+					if (!modal) return;
+					var focusable = modal.querySelectorAll('button, [href], input:not([type="hidden"]), select, textarea, [tabindex]:not([tabindex="-1"])');
+					if (focusable.length === 0) return;
+					var first = focusable[0];
+					var last = focusable[focusable.length - 1];
+					if (evt.shiftKey) {
+						if (document.activeElement === first) {
+							evt.preventDefault();
+							last.focus();
+						}
+					} else {
+						if (document.activeElement === last) {
+							evt.preventDefault();
+							first.focus();
+						}
+					}
+				}
+			});
+
+			// Close modal on overlay or close button click (event delegation)
+			document.addEventListener('click', function(evt) {
+				if (evt.target && (evt.target.classList.contains('modal-overlay') || evt.target.classList.contains('modal-close'))) {
+					_closeModal();
+				}
+			});
+
+			// Focus management after modal content is loaded
+			document.addEventListener('htmx:afterSwap', function(evt) {
+				if (evt.detail.target && evt.detail.target.id === 'modal-container') {
+					var container = evt.detail.target;
+					if (container.innerHTML.trim() !== '') {
+						_modalPreviousFocus = document.activeElement;
+						var closeBtn = container.querySelector('.modal-close');
+						if (closeBtn) closeBtn.focus();
+					}
+				}
+			});
+
+			// Filter tab active state via event delegation
+			document.addEventListener('htmx:beforeRequest', function(evt) {
+				var el = evt.detail.elt;
+				if (el && el.classList.contains('filter-tab')) {
+					document.querySelectorAll('.filter-tab').forEach(function(t) { t.classList.remove('active'); });
+					el.classList.add('active');
+				}
+			});
+
+			// Theme toggle
+			function _getEffectiveTheme() {
+				var stored = localStorage.getItem('theme');
+				if (stored === 'dark' || stored === 'light') return stored;
+				return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+			}
+			function _setTheme(theme) {
+				document.documentElement.classList.add('theme-transition');
+				if (theme === 'system') {
+					document.documentElement.removeAttribute('data-theme');
+					localStorage.setItem('theme', 'system');
+				} else {
+					document.documentElement.setAttribute('data-theme', theme);
+					localStorage.setItem('theme', theme);
+				}
+				_updateToggleIcon();
+				setTimeout(function() {
+					document.documentElement.classList.remove('theme-transition');
+				}, 300);
+			}
+			function _toggleTheme() {
+				var current = _getEffectiveTheme();
+				_setTheme(current === 'dark' ? 'light' : 'dark');
+			}
+			function _updateToggleIcon() {
+				var btn = document.getElementById('theme-toggle');
+				if (!btn) return;
+				var effective = _getEffectiveTheme();
+				var icon = btn.querySelector('.theme-toggle-icon');
+				if (icon) {
+					icon.textContent = effective === 'dark' ? '\u2600' : '\u263D';
+				}
+				btn.setAttribute('aria-label', effective === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro');
+			}
+			window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+				var stored = localStorage.getItem('theme');
+				if (!stored || stored === 'system') {
+					_updateToggleIcon();
+				}
+			});
+
+			// Toggle aria-expanded on dropdown buttons and hamburger menu
+			document.addEventListener('DOMContentLoaded', function() {
+				_updateToggleIcon();
+				// Service Worker Registration
+				if ('serviceWorker' in navigator) {
+					navigator.serviceWorker.register('/sw.js');
+				}
+				document.querySelectorAll('.dropdown').forEach(function(dd) {
+					var btn = dd.querySelector('.dropdown-toggle');
+					if (!btn) return;
+					dd.addEventListener('mouseenter', function() { btn.setAttribute('aria-expanded', 'true'); });
+					dd.addEventListener('mouseleave', function() { btn.setAttribute('aria-expanded', 'false'); });
+					btn.addEventListener('focus', function() { btn.setAttribute('aria-expanded', 'true'); });
+					btn.addEventListener('blur', function() {
+						setTimeout(function() {
+							if (!dd.contains(document.activeElement)) btn.setAttribute('aria-expanded', 'false');
+						}, 100);
+					});
+				});
+				});
+		</script>
+	</head>
+}
+
+// Base renders the full HTML layout with navbar for authenticated pages.
+templ Base(title string, user *models.User) {
+	<!DOCTYPE html>
+	<html lang="es">
+		@Head(title)
+		<body>
+			<a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+			@Navbar(user)
+			<main id="main-content" class="container">
+				{ children... }
+			</main>
+			<div id="modal-container"></div>
+		</body>
+	</html>
+}
+
+// BaseLogin renders a minimal HTML layout without navbar for the login page.
+templ BaseLogin(title string) {
+	<!DOCTYPE html>
+	<html lang="es">
+		@Head(title)
+		<body class="login-body">
+			<button
+				id="theme-toggle"
+				type="button"
+				class="btn-theme-toggle btn-theme-toggle-float"
+				onclick="_toggleTheme()"
+				aria-label="Cambiar a modo oscuro"
+			>
+				<span class="theme-toggle-icon" aria-hidden="true">&#9789;</span>
+			</button>
+			{ children... }
+		</body>
+	</html>
+}

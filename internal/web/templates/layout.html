@@ -1,0 +1,79 @@
+{{define "layout"}}<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · Grupo Sur</title>
+  <script>
+    (function(){var s=localStorage.getItem('theme');
+      if(s==='dark')document.documentElement.setAttribute('data-theme','dark');
+      else if(s==='light')document.documentElement.setAttribute('data-theme','light');
+    })();
+  </script>
+  <link rel="icon" type="image/png" href="/static/images/simple-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+  {{if .User}}
+  <header class="topbar">
+    <a class="brand" href="/">
+      <img src="/static/images/simple-logo.png" alt="" aria-hidden="true">
+      <span>Grupo Sur</span>
+    </a>
+    <nav class="nav">
+      <a href="/" class="{{if eq .Active "inicio"}}on{{end}}">Inicio</a>
+      {{if .User.IsAdmin}}<a href="/admin/usuarios" class="{{if eq .Active "admin"}}on{{end}}">Usuarios</a>{{end}}
+    </nav>
+    <div class="user">
+      <button id="theme-toggle" type="button" class="btn-theme-toggle" onclick="_toggleTheme()" aria-label="Cambiar tema">
+        <span class="theme-toggle-icon" aria-hidden="true">&#9789;</span>
+      </button>
+      <span>{{if .User.Name}}{{.User.Name}}{{else}}{{.User.Email}}{{end}}</span>
+      <a href="/logout" class="logout">Salir</a>
+    </div>
+  </header>
+  {{else}}
+  <button id="theme-toggle" type="button" class="btn-theme-toggle btn-theme-toggle-float" onclick="_toggleTheme()" aria-label="Cambiar tema">
+    <span class="theme-toggle-icon" aria-hidden="true">&#9789;</span>
+  </button>
+  {{end}}
+  <main class="container{{if eq .Active "visitas"}} container-wide{{end}}">
+    {{template "content" .}}
+  </main>
+
+  <script>
+    function _getEffectiveTheme(){
+      var s=localStorage.getItem('theme');
+      if(s==='dark'||s==='light')return s;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+    }
+    function _setTheme(theme){
+      document.documentElement.classList.add('theme-transition');
+      document.documentElement.setAttribute('data-theme',theme);
+      localStorage.setItem('theme',theme);
+      _updateToggleIcon();
+      setTimeout(function(){document.documentElement.classList.remove('theme-transition');},300);
+    }
+    function _toggleTheme(){
+      _setTheme(_getEffectiveTheme()==='dark'?'light':'dark');
+    }
+    function _updateToggleIcon(){
+      var btn=document.getElementById('theme-toggle');
+      if(!btn)return;
+      var eff=_getEffectiveTheme();
+      var icon=btn.querySelector('.theme-toggle-icon');
+      if(icon)icon.textContent=eff==='dark'?'☀':'☽';
+      btn.setAttribute('aria-label',eff==='dark'?'Cambiar a modo claro':'Cambiar a modo oscuro');
+    }
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(){
+      var s=localStorage.getItem('theme');
+      if(!s)_updateToggleIcon();
+    });
+    _updateToggleIcon();
+  </script>
+</body>
+</html>{{end}}

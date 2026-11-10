@@ -1,0 +1,48 @@
+package templates
+
+import "inventory-webapp/internal/models"
+
+templ Navbar(user *models.User) {
+	<nav class="navbar">
+		<div class="navbar-container">
+			<a href="/" class="navbar-brand">
+				<img src="/static/images/simple-logo.png" alt="" class="navbar-logo" aria-hidden="true"/>
+				<span>Inventario GrupoSur</span>
+			</a>
+			<div class="navbar-menu">
+				<div class="dropdown">
+					<button class="dropdown-toggle" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Menú de configuración">
+						Configuración
+						<span class="dropdown-arrow">&#9662;</span>
+					</button>
+					<div class="dropdown-menu">
+						<a href="/admin/studies" class="dropdown-item">Estudios</a>
+						<a href="/admin/supplies" class="dropdown-item">Insumos</a>
+					</div>
+				</div>
+				<a href="/stock" class="navbar-link">Stock</a>
+				<a href="/delivery" class="navbar-link">Entrega/Devolución</a>
+				<button
+					id="theme-toggle"
+					type="button"
+					class="btn-theme-toggle"
+					onclick="_toggleTheme()"
+					aria-label="Cambiar a modo oscuro"
+				>
+					<span class="theme-toggle-icon" aria-hidden="true">&#9789;</span>
+				</button>
+				<div class="navbar-user">
+					<span class="navbar-username">{ user.FullName }</span>
+					<form method="POST" action="/logout" class="logout-form">
+						@CSRFInput()
+						<button type="submit" class="btn-logout">Cerrar Sesión</button>
+					</form>
+				</div>
+			</div>
+			<form method="POST" action="/logout" class="logout-form-mobile">
+				@CSRFInput()
+				<button type="submit" class="btn-logout">Cerrar Sesión</button>
+			</form>
+		</div>
+	</nav>
+}

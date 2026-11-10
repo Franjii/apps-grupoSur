@@ -1,0 +1,10 @@
+{{define "content"}}
+<div class="login">
+  <div class="login-container">
+    <div class="login-logo"><img src="/static/images/logo.png" alt="Grupo Sur"></div>
+    <h1>Acceso a reportes internos</h1>
+    {{if .Error}}<div class="error-message">{{.Error}}</div>{{end}}
+    <a class="btn btn-primary btn-block" href="/auth/login">Iniciar sesión con Google</a>
+  </div>
+</div>
+{{end}}
