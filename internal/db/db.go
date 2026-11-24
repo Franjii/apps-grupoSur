@@ -46,7 +46,9 @@ func Seed(sdb *sql.DB, adminEmails []string) error {
 		`INSERT INTO modules(key, name) VALUES
 		     ('estadisticas','Estadísticas'),
 		     ('inventario','Inventario'),
-		     ('compliance','Compliance'), ('pizarra','Pizarra')
+		     ('compliance','Compliance'), ('pizarra','Pizarra'),
+		     ('farmacia','Farmacia'), ('farmacia_finanzas','Farmacia · Finanzas'),
+		     ('transporte','Transporte')
 		 ON CONFLICT(key) DO NOTHING`); err != nil {
 		return fmt.Errorf("seed modules: %w", err)
 	}

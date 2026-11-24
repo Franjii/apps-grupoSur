@@ -53,7 +53,7 @@ func main() {
 			cfg.OAuthRedirectURL, cfg.LoginURL+"/")
 	}
 
-	cat := catalog.Build(cfg.BaseURL, cfg.InventarioBaseURL, cfg.ComplianceBaseURL, cfg.PizarraBaseURL)
+	cat := catalog.Build(cfg.BaseURL, cfg.InventarioBaseURL, cfg.ComplianceBaseURL, cfg.PizarraBaseURL, cfg.FarmaciaBaseURL, cfg.TransporteBaseURL)
 	srv := &handlers.Server{DB: sdb, Rend: rend, Auth: am, Store: store, Catalog: cat, SSOSecret: cfg.SSOSharedSecret}
 
 	httpSrv := &http.Server{

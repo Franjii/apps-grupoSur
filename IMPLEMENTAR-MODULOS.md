@@ -54,8 +54,7 @@ En [internal/config/config.go](internal/config/config.go):
 
 - Agregar el campo de URL del módulo a `Config`.
 - Leer su variable de entorno, con un valor local adecuado para pruebas.
-- Configurar explícitamente la URL HTTPS real al publicar. Un valor predeterminado
-  `localhost` puede hacer que la tarjeta publicada abra la PC del usuario.
+- Configurar explícitamente la URL HTTPS real al publicar. El valor predeterminado "local host" es para pruebas locales.
 
 En [cmd/server/main.go](cmd/server/main.go), pasar la configuración al catálogo.
 Actualizar la firma de `catalog.Build` y todos sus usos y pruebas de forma coherente.

@@ -15,6 +15,8 @@ type Config struct {
 	LoginURL string // URL pública del login
 
 	// Módulos externos
+	TransporteBaseURL string
+	FarmaciaBaseURL   string
 	PizarraBaseURL    string
 	ComplianceBaseURL string // URL base del módulo Compliance
 	InventarioBaseURL string // URL base del módulo Inventario (app aparte)
@@ -45,6 +47,8 @@ type Config struct {
 
 func Load() Config {
 	c := Config{
+		TransporteBaseURL:  strings.TrimRight(env("TRANSPORTE_BASE_URL", "http://localhost:4050"), "/"),
+		FarmaciaBaseURL:    env("FARMACIA_BASE_URL", "http://localhost:4060"),
 		Addr:               env("ADDR", ":8080"),
 		BaseURL:            env("BASE_URL", "http://localhost:8080"),
 		LoginURL:           env("LOGIN_URL", "http://localhost:8080"),

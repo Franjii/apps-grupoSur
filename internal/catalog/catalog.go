@@ -37,12 +37,10 @@ type Modules []Module
 //
 // inventarioBaseURL es la URL base del módulo Inventario, que vive en una app
 // aparte (inventory-webapp) en su propio subdominio.
-func Build(estadisticasBaseURL, inventarioBaseURL, complianceBaseURL string, pizarraBaseURLs ...string) Modules {
-	pizarraURL := "http://localhost:8081"
-	if len(pizarraBaseURLs) > 0 {
-		pizarraURL = pizarraBaseURLs[0]
-	}
+func Build(estadisticasBaseURL, inventarioBaseURL, complianceBaseURL, pizarraURL, farmaciaBaseURL, transporteBaseURL string) Modules {
 	return Modules{
+		{Key: "transporte", Name: "Transporte", Desc: "Gestión de los traslados de los pacientes de los ensayos clínicos hacia y desde las sedes.", BaseURL: transporteBaseURL, Landing: "/"},
+		{Key: "farmacia", Name: "Farmacia", Desc: "Compras, recepción, inventario, dispensación y reembolsos de medicación.", BaseURL: farmaciaBaseURL, Landing: "/"},
 		{Key: "pizarra", Name: "Pizarra", Desc: "Proyectos, pizarras y tareas compartidas con tu equipo.", BaseURL: pizarraURL, Landing: "/"},
 		{
 			Key:     "estadisticas",
@@ -94,7 +92,7 @@ func (ms Modules) For(u *auth.User) Modules {
 	}
 	var out Modules
 	for _, m := range ms {
-		if u.HasModule(m.Key) {
+		if u.HasModule(m.Key) || (m.Key == "farmacia" && u.HasModule("farmacia_finanzas")) {
 			out = append(out, m)
 		}
 	}
